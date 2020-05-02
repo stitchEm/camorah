@@ -1,0 +1,279 @@
+syntax = "proto2";
+
+package camera;
+
+option java_package = "com.rhondasoftware.camera.api";
+option java_outer_classname = "CamApi";
+
+/* Camera API version ID */
+enum ApiVersion {
+  API_VERSION = 2;
+}
+
+// ------------------------------
+//             video
+// ------------------------------
+
+message Video {
+  enum OpCode {
+    UNKNOWN = 0;
+
+    /* Start video encoding and streaming */
+    START = 1;
+
+    /* Stop video encoding and streaming */
+    STOP = 2;
+
+    /* Get stream URLs
+     * return: Reply.url - vertor of video stream URLs
+     */
+    GET_STREAM_URL = 10;
+  };
+
+  optional OpCode op = 1;
+  optional string url = 2;
+
+  message Reply {
+    enum RetCode {
+      UNKNOWN_ERROR = 0;
+      SUCCESS = 1;
+      NO_VIDEO_RUNNING = 6;
+    };
+
+    optional OpCode   op = 1;
+    optional RetCode  ret = 2;
+
+    repeated string url = 5;
+  };
+};
+
+// ------------------------------
+//           general
+// ------------------------------
+
+message Cam {
+  enum OpCode {
+    UNKNOWN = 0;
+
+    /* Returns current camera operation mode.
+     * return: Reply.mode
+     */
+    GET_CAMERA_MODE = 1;
+
+    /* Request camera restart */
+    RESTART = 4;
+
+    /* Request camera shutdown */
+    SHUTDOWN = 5;
+
+    /* Get camera info.
+     * return: Reply.info
+     */
+    GET_CAMERA_INFO = 6;
+
+    /* Request FW update
+     * input:
+     *   fw_url - an URL to download FW update image
+     *   checksum_type - checksum calculation algorithm (optional)
+     *   checksum - checksum value (optional)
+     */
+    FW_UP = 7;
+
+    /* Set camera name
+     * input: cam_name - camera name to be advertized using Zeroconf
+     */
+    SET_CAMERA_NAME = 8;
+
+    /* Set current time
+     * input: time - UNIX time (optional). Current
+     *               value returned if input is not set.
+     * return: Reply.time
+     */
+    CAMERA_TIME = 9;
+
+    /* Set user authorization info
+     * input: user_info - data used during Client authorization
+     */
+    SET_USER_INFO = 10;
+
+    /* Reset settings to factory defaults */
+    FW_RESET = 11;
+
+    /* Get/set audio gain
+     * input: gain_db - Gain for each channel in decibels in [-12..20] range.
+     *        Values out of range are reduced to margin (i.e. -20 -> -12, 25 -> 20)
+     *        Number of channels must match sensors_num returned by GET_CAMERA_INFO.
+     *        Current value returned if input is not set.
+     * return: current gain for each channel.
+     */
+    AUDIO_GAIN = 20;
+
+    /* Generate audio sync pulses. The command can be sent only once after streaming start.  */
+    AUDIO_SYNC = 21;
+  };
+
+  enum ChecksumType {
+    SKIP_CHECK = 0;
+    MD5SUM = 1;
+    SHA1SUM = 2;
+  };
+
+  optional OpCode op = 1;
+
+  optional string cam_name = 4;
+
+  optional ChecksumType checksum_type = 5;
+  optional string checksum = 6;
+
+  optional bytes fw_url = 7;
+  optional bytes user_info = 8;
+
+  optional uint64 time = 9;
+
+  repeated float gain_db = 10;
+
+  message Reply {
+    enum RetCode {
+      UNKNOWN_ERROR = 0;
+      SUCCESS = 1;
+      INVALID_SYNTAX = 2;
+      INVALID_INPUT_VALUE = 3;
+      BROKEN_LINK = 4;
+    };
+
+    message CameraInfo {
+      optional string hw_ver = 1;
+      optional string sw_ver = 2;
+      optional string name = 3;
+      optional string serial_no = 4;
+      optional string model = 5;
+      optional uint32 sensors_num = 6;
+      optional uint32 soc_num = 7;
+    };
+
+    enum CameraMode {
+      UNKNOWN = 0;
+      IDLE = 1;
+      LIVE = 2;
+      USB = 6;
+      FW_UPGRADE = 12;
+    };
+
+    optional OpCode op = 1;
+    optional RetCode ret = 2;
+
+    optional CameraInfo info = 3;
+    optional CameraMode mode = 4;
+
+    optional uint64 time = 7;
+    repeated float gain_db = 8;
+  };
+};
+
+// ------------------------------
+//         notifications
+// ------------------------------
+
+message Event {
+  enum MsgId {
+    UNKNOWN = 0;
+
+    /* Video encoding is failed for some reason */
+    VIDEO_FAIL = 3;
+
+    /* FW can't be downloaded due to broken link.
+     * return: ip_addr - link we attempt to access
+     */
+    FW_BROKEN_LINK = 12;
+
+    /* FW image checksum check failed */
+    FW_CHECKSUM_MISMATCH = 13;
+
+    /* FW upgraded successfully */
+    FW_UPGRADED = 14;
+  };
+
+  optional MsgId msg = 1;
+
+  optional string ip_addr = 4;
+};
+
+
+// ------------------------------
+//           Test mode
+// ------------------------------
+message TestMode {
+    oneof body {
+        Video.Reply.RetCode video_status = 1; // All Video command will return this status (Unless set to Video.OpCode.SUCCESS)
+        Cam.Reply.RetCode cam_status = 2;     // All Cam command will return this status (Unless set to Cam.OpCode.SUCCESS)
+        Event.MsgId event = 3;                // Send event with specified type
+  }
+};
+
+// ------------------------------
+//          file system
+// ------------------------------
+
+message Fs {
+  enum OpCode {
+    UNKNOWN = 0;
+    GET = 1;
+    PUT = 2;
+  };
+
+  optional OpCode op = 1;
+  optional bytes url = 2;
+  optional string file_name = 3;
+  
+  message Reply {
+    enum RetCode {
+      UNKNOWN_ERROR = 0;
+      SUCCESS = 1;
+      INVALID_SYNTAX = 2;
+      UNEXPECTED_COMMAND = 3;
+      INVALID_INPUT_VALUE = 4;
+      FILE_NOT_FOUND = 5;
+      NO_SPACE = 6;
+      BROKEN_LINK = 7;
+    };
+
+    optional OpCode op = 1;
+    optional RetCode ret = 2;
+    optional bytes url = 8;
+  };
+};
+
+
+
+/*
+ * Camera API enclosure message
+ */
+message Api {
+
+  /* Arbitrary data to be passed back to the caller */
+  optional bytes cookie = 3;
+
+  message Reply {
+    enum RetCode {
+      UNKNOWN_COMMAND = 0;
+    };
+
+    optional RetCode ret = 1;
+  };
+
+  oneof body {
+    Api.Reply     api_reply = 1;
+
+    Event         event = 4;
+
+    Video         video = 7;
+    Video.Reply   video_reply = 8;
+
+    Fs            fs = 11;
+    Fs.Reply      fs_reply = 12;
+
+    Cam           cam = 17;
+    Cam.Reply     cam_reply = 18;
+    TestMode      test_mode = 20;
+  };
+};
