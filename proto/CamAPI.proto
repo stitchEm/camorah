@@ -2,7 +2,6 @@ syntax = "proto2";
 
 package camera;
 
-option java_package = "com.rhondasoftware.camera.api";
 option java_outer_classname = "CamApi";
 
 /* Camera API version ID */
